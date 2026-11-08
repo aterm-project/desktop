@@ -1,0 +1,8 @@
+{
+  "input_release_tag": "ci-input-windows-runtime-YYYYMMDD-N",
+  "source_sha256": "<64 hex: sha256 of source.tar.gz>",
+  "source_manifest_sha256": "<64 hex: sha256 of source-manifest.json>",
+  "native_bundle_sha256": "cbc3fde0b0e4f3664cbd9bb4f0ac183dd68022711f5a4f37df24e26ff114b920",
+  "engine_sha256": "803770d08258d09ffbfcc4694a97a5ef75da105f85198355192998b9950887fe",
+  "firebase_sdk_sha256": ""
+}

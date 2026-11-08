@@ -1,0 +1,143 @@
+# Windows runtime release build from a FROZEN private input release.
+#
+# Lives only on the dedicated CI branch `ci/windows-runtime`; desktop main stays clean.
+# Primary trigger: a push to ci/windows-runtime that changes tools/windows-ci/inputs.json
+# (tag + SHA-256 values only). workflow_dispatch is kept as a secondary trigger, but GitHub
+# only offers it when this file also exists on the default branch, which is NOT planned.
+# No secrets are used beyond the job's own read-only GITHUB_TOKEN.
+name: Windows runtime release
+
+on:
+  push:
+    branches: [ci/windows-runtime]
+    paths: [tools/windows-ci/inputs.json]
+  workflow_dispatch:
+    inputs:
+      input_release_tag:
+        description: "Private prerelease holding source.tar.gz, source-manifest.json, native-bundle.zip (ci-input-*)"
+        required: true
+        type: string
+      source_sha256:
+        description: "SHA-256 of source.tar.gz"
+        required: true
+        type: string
+      source_manifest_sha256:
+        description: "SHA-256 of source-manifest.json"
+        required: true
+        type: string
+      native_bundle_sha256:
+        description: "SHA-256 of native-bundle.zip"
+        required: true
+        type: string
+      engine_sha256:
+        description: "SHA-256 of the prebuilt atermius_rdp.dll inside the native bundle"
+        required: true
+        type: string
+        default: "803770d08258d09ffbfcc4694a97a5ef75da105f85198355192998b9950887fe"
+      firebase_sdk_sha256:
+        description: "Optional SHA-256 pin for firebase_cpp_sdk_windows_<ver>.zip (empty = record and warn)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-runtime:
+    name: Build Windows x64 runtime
+    runs-on: windows-2025
+    timeout-minutes: 120
+    env:
+      FLUTTER_VERSION: "3.47.5"
+      FLUTTER_REVISION: "6a19cca56475dbfba1478ee68d7bd0c2ef891da1"
+      FLUTTER_SDK_SHA256: "0ccd71931f49c2fbe394b1eeb6d79af3d624058a043ea0d03d34160581624fb8"
+      DART_VERSION: "3.13.4"
+      ATERMIUS_MAX_WORKERS: "8"
+      CMAKE_BUILD_PARALLEL_LEVEL: "8"
+      FLUTTER_SUPPRESS_ANALYTICS: "true"
+    steps:
+      - name: Check out CI tooling only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: |
+            tools/windows-ci
+
+      - name: Resolve and validate inputs
+        shell: pwsh
+        env:
+          # Dispatch inputs flow only through env (never interpolated into script text).
+          IN_TAG: ${{ inputs.input_release_tag }}
+          IN_SOURCE: ${{ inputs.source_sha256 }}
+          IN_MANIFEST: ${{ inputs.source_manifest_sha256 }}
+          IN_NATIVE: ${{ inputs.native_bundle_sha256 }}
+          IN_ENGINE: ${{ inputs.engine_sha256 }}
+          IN_FIREBASE: ${{ inputs.firebase_sdk_sha256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REF -cne 'refs/heads/ci/windows-runtime') { throw 'Run only from refs/heads/ci/windows-runtime' }
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $v = [ordered]@{ input_release_tag = $env:IN_TAG; source_sha256 = $env:IN_SOURCE
+              source_manifest_sha256 = $env:IN_MANIFEST; native_bundle_sha256 = $env:IN_NATIVE
+              engine_sha256 = $env:IN_ENGINE; firebase_sdk_sha256 = $env:IN_FIREBASE }
+          } else {
+            $obj = Get-Content -LiteralPath 'tools/windows-ci/inputs.json' -Raw | ConvertFrom-Json -AsHashtable
+            $keys = 'input_release_tag','source_sha256','source_manifest_sha256','native_bundle_sha256','engine_sha256','firebase_sdk_sha256'
+            $diff = Compare-Object @($obj.Keys | Sort-Object) @($keys | Sort-Object)
+            if ($diff) { throw 'inputs.json must contain exactly the six documented keys' }
+            $v = [ordered]@{}; foreach ($k in $keys) { $v[$k] = [string]$obj[$k] }
+          }
+          if ($v.input_release_tag -cnotmatch '^ci-input-[A-Za-z0-9._-]{1,80}$') { throw 'input_release_tag must match ci-input-[A-Za-z0-9._-]{1,80}' }
+          foreach ($k in 'source_sha256','source_manifest_sha256','native_bundle_sha256','engine_sha256') {
+            if ($v[$k] -cnotmatch '^[0-9a-f]{64}$') { throw "$k must be 64 lowercase hex characters" }
+          }
+          if ($v.firebase_sdk_sha256 -and $v.firebase_sdk_sha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'firebase_sdk_sha256 must be empty or 64 lowercase hex' }
+          # Values are validated to [A-Za-z0-9._-] so they cannot inject extra GITHUB_ENV lines.
+          @(
+            "ATERMIUS_INPUT_TAG=$($v.input_release_tag)"
+            "ATERMIUS_SOURCE_SHA256=$($v.source_sha256)"
+            "ATERMIUS_SOURCE_MANIFEST_SHA256=$($v.source_manifest_sha256)"
+            "ATERMIUS_NATIVE_BUNDLE_SHA256=$($v.native_bundle_sha256)"
+            "ATERMIUS_ENGINE_SHA256=$($v.engine_sha256)"
+            "ATERMIUS_FIREBASE_SDK_SHA256=$($v.firebase_sdk_sha256)"
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+          $v | ConvertTo-Json | Write-Host
+
+      - name: Download frozen private inputs
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $dir = Join-Path $env:RUNNER_TEMP 'in'
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          gh release download $env:ATERMIUS_INPUT_TAG --repo $env:GITHUB_REPOSITORY --dir $dir `
+            --pattern source.tar.gz --pattern source-manifest.json --pattern native-bundle.zip
+          Get-ChildItem -LiteralPath $dir | ForEach-Object { '{0} {1}' -f $_.Name, $_.Length }
+
+      - name: Build, package and self-verify
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE/tools/windows-ci/build_windows_runtime.ps1" `
+            -InputsDir (Join-Path $env:RUNNER_TEMP 'in') `
+            -WorkRoot (Join-Path $env:RUNNER_TEMP 'w') `
+            -OutDir (Join-Path $env:RUNNER_TEMP 'out')
+
+      - name: Upload runtime artifact
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: atermius-windows-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          include-hidden-files: false
+          overwrite: false
