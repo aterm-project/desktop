@@ -1,7 +1,7 @@
 {
-  "input_release_tag": "ci-input-windows-runtime-20261108-1",
-  "source_sha256": "a7f648cfb93beec731d998f4528ad61d6a012e606f6684b09af87eb1c4b16445",
-  "source_manifest_sha256": "925acdb825e6ef7e1b8bd7dffdaea593337bb6d176c911ebf177ef5017ed2323",
+  "input_release_tag": "ci-input-windows-runtime-20261108-2",
+  "source_sha256": "a1efc2846fbc0fe3bcd50791bf58c48968ecbdfa4a4a8ae5825e845ff3719a33",
+  "source_manifest_sha256": "383e3cef05704e3ab1a16edb96b9aaa5ed89c6db3f6ed4c0cc33309b117432d7",
   "native_bundle_sha256": "cbc3fde0b0e4f3664cbd9bb4f0ac183dd68022711f5a4f37df24e26ff114b920",
   "engine_sha256": "803770d08258d09ffbfcc4694a97a5ef75da105f85198355192998b9950887fe",
   "firebase_sdk_sha256": "c4a11fcbe192084f3007b9e08ee1f4134b844e4b5951ccaabe64cf69c33a7cee"
