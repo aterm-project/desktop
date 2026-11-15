@@ -1,3 +1,7 @@
+> [!WARNING]
+> **本仓库已归档，不再更新。** 2026-11-14 已合并到 [aterm-project/atermius](https://github.com/aterm-project/atermius)，后续开发都在那里进行（本仓库的代码现位于 `apps/client/`）。
+> 各平台安装包见 [Atermius 发布页](https://github.com/aterm-project/atermius/releases)。
+
 <p align="center"><img src="docs/assets/atermius-mark.svg" width="72" alt="Atermius"></p>
 
 <h1 align="center">Atermius · Desktop</h1>
