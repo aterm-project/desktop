@@ -1,3 +1,7 @@
+> [!WARNING]
+> **This repository is archived and no longer updated.** On 2026-11-14 it was merged into [aterm-project/atermius](https://github.com/aterm-project/atermius), where all development continues (this code now lives under `apps/client/`).
+> Downloads for every platform are on the [Atermius releases page](https://github.com/aterm-project/atermius/releases).
+
 <p align="center"><img src="docs/assets/atermius-mark.svg" width="72" alt="Atermius"></p>
 
 <h1 align="center">Atermius · Desktop</h1>
